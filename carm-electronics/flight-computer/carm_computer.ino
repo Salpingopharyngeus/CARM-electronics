@@ -18,6 +18,9 @@
 #include "Adafruit_MCP9808.h" // Temp sensor module
 #include "sensor_setup.h"
 #include <SD.h> // SD card module
+#include <SPI.h> // SPI module
+#include <RH_RF95.h> // Radio module
+
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - -
 //   Defining digital pins, constants, and sensor objects
@@ -28,6 +31,19 @@
 #define BMP_CS 17
 #define SEALEVELPRESSURE_HPA (1013.25)
 const int chipSelect = 22; // SD card module
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - -
+//  LoRa RFM95 Configuration
+// - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+#define RFM95_CS 10
+#define RFM95_RST 9
+#define RFM95_INT 2
+#define RF95_FREQ 433.0
+
+// Singleton instance of the radio driver
+RH_RF95 rf95(RFM95_CS, RFM95_INT);
+
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - -
 //   Defining Rocket States
@@ -86,10 +102,49 @@ void setup()
     setupSensorBMP(bmp);
     setupSensorTemp(tempsensor);
     tempsensor.wake();
-    setupSDCard(writeToSD);
-}
+    
+    pinMode(RFM95_RST, OUTPUT);
+    digitalWrite(RFM95_RST, HIGH);
 
-void loop(writeToSD)
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    //   Radio Initialziation
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    
+    
+    // Initialising the radio module
+    if (!rf95.init())
+    {
+        Serial.println("LoRa radio init failed");
+        while (1);
+    }
+
+    if (!rf95.setFrequency(RF95_FREQ))
+    {
+        Serial.println("setFrequency failed");
+        while (1);
+    }
+
+    //Sets the transmit power to 23 dBm
+    rf95.setTxPower(23, false);
+
+    Serial.println("LoRa radio init OK!");
+
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    //   SD Card Initialziation
+    // - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    
+    //Initialising the SD card
+    Serial.print("Initializing SD card...");
+    pinMode
+    if (!SD.begin(chipSelect))
+    {
+        Serial.println("SD card initialization failed!");
+        return;
+    }
+    Serial.println("SD card initialization done.");
+  }
+
+void loop()
 {
     // get readings from all the sensors
     lsm.read();
@@ -102,7 +157,7 @@ void loop(writeToSD)
 
     // create a new SensorData object
     new SensorData data;
-    data.time = millis();
+    data.time = millis() / 1000;
 
 
 
@@ -166,63 +221,55 @@ void loop(writeToSD)
     Serial.println(g.gyro.z);
     data.gyro_z = g.gyro.z;
 
-
-    //write the SensorData object to the SD card in csv format
-    for (int i = 0; i < 14; i++)
-    {
-        writeToSD.print(data[i]);
-        writeToSD.print(",");
+    File dataFile = SD.open("datalog.csv", FILE_WRITE);
+    if (dataFile) {
+        dataFile.print(data.time);
+        dataFile.print(",");
+        dataFile.print(data.temperature);
+        dataFile.print(",");
+        dataFile.print(data.altimeter_temp);
+        dataFile.print(",");
+        dataFile.print(data.pressure);
+        dataFile.print(",");
+        dataFile.print(data.altitude);
+        dataFile.print(",");
+        dataFile.print(data.accel_x);
+        dataFile.print(",");
+        dataFile.print(data.accel_y);
+        dataFile.print(",");
+        dataFile.print(data.accel_z);
+        dataFile.print(",");
+        dataFile.print(data.mag_x);
+        dataFile.print(",");
+        dataFile.print(data.mag_y);
+        dataFile.print(",");
+        dataFile.print(data.mag_z);
+        dataFile.print(",");
+        dataFile.print(data.gyro_x);
+        dataFile.print(",");
+        dataFile.print(data.gyro_y);
+        dataFile.print(",");
+        dataFile.println(data.gyro_z);
+        dataFile.close();
+        
+        Serial.println("Data written to SD card");
     }
-    writeToSD.println();
-
-    //Delays for 2 seconds
-    //TODO maybe change this so that the radio transmission is in 2 second increments but the data writeout is for a much higher frequency
-
-
-
-    delay(2000);
-
-    bool timingToSend = false;
-
-    if (timingToSend)
-    {
-        // Do the bit packing and send the data to the groundstation
+    else {
+        Serial.println("error opening datalog.csv");
     }
 
+    // Transmitting the data
+    Serial.println("Sending packet: ");
+    uint8_t buf[sizeof(data)];
+    memcpy(buf, &data, sizeof(data));
+    rf95.send(buf, sizeof(buf));
+    rf95.waitPacketSent();
+    Serial.println("Sent a packet");
 
-}
+    //Sets the transmision rate to 1 second.
+    delay(1000);
+ 
 
 
- 
-void setupSDCard(writeToSD)
-{
-  Serial.print("Initializing SD card...");
-  // On the Ethernet Shield, CS is pin 4. It's set as an output by default.
-  // Note that even if it's not used as the CS pin, the hardware SS pin 
-  // (10 on most Arduino boards, 53 on the Mega) must be left as an output 
-  // or the SD library functions will not work. 
-   pinMode(chipSelect, OUTPUT);
- 
-  if (!SD.begin(chipSelect)) {
-    Serial.println("SD card initialization failed!");
-    return;
-  }
-  Serial.println("SD card initialization done.");
- 
-  // open the file. note that only one file can be open at a time,
-  // so you have to close this one before opening another.
-  writeToSD = SD.open("Data_output.csv", FILE_WRITE);
- 
-  // if the file opened okay, write to it:
-  if (myFile) {
-    Serial.print("Writing to test.csv...");
-    myFile.println();
-	// close the file:
-    myFile.close();
-    Serial.println("done.");
-  } else {
-    // if the file didn't open, print an error:
-    Serial.println("error opening test.txt");
-  }
-  return;
+
 }
