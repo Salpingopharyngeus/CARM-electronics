@@ -1,3 +1,5 @@
+
+
 /**************************************************************
  *
  *                     carm_computer.ino
@@ -11,11 +13,13 @@
  *
  **************************************************************/
 
+
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_LSM9DS1.h> // IMU module
 #include "Adafruit_BMP3XX.h"  // BMP module
 #include "Adafruit_MCP9808.h" // Temp sensor module
+#include <Arduino_BuiltIn.h>
 #include "sensor_setup.h"
 #include <SD.h> // SD card module
 #include <SPI.h> // SPI module
@@ -51,21 +55,21 @@ RH_RF95 rf95(RFM95_CS, RFM95_INT);
 
 // NOT TRANSMITTING MUCH FOR THESE GUYS
 // RECIEVING POWER
-bool POWER_ON
+bool POWER_ON;
 // SENSOR VALUES HAVE STABILIZED
-bool LAUNCH_READY
+bool LAUNCH_READY;
 
 // WE ARE ACTUALLY TRANSMITTING HERE
 // INDICATORS FROM SENSOR TELL US WE ARE IN THIS MODE
-bool LAUNCH_MODE
+bool LAUNCH_MODE;
 // TRANSITION FROM BURNOUT TO COAST PHASE IS WHEN JERK == 0 AND ACCEL IS NEGATIVE
-bool POWERED_FLIGHT_PHASE 
-bool COAST_PHASE
+bool POWERED_FLIGHT_PHASE;
+bool COAST_PHASE;
 
-bool APOGEE_PHASE // determined by barometric altitude
-bool DROGUE_DEPLOYMENT 
-bool MAIN_DEPLOYMENT
-bool RECOVERY_PHASE
+bool APOGEE_PHASE; // determined by barometric altitude
+bool DROGUE_DEPLOYMENT;
+bool MAIN_DEPLOYMENT;
+bool RECOVERY_PHASE;
 
 
 
@@ -135,7 +139,7 @@ void setup()
     
     //Initialising the SD card
     Serial.print("Initializing SD card...");
-    pinMode
+    pinMode(chipSelect, OUTPUT);
     if (!SD.begin(chipSelect))
     {
         Serial.println("SD card initialization failed!");
@@ -156,7 +160,7 @@ void loop()
     }
 
     // create a new SensorData object
-    new SensorData data;
+    SensorData data;
     data.time = millis() / 1000;
 
 
